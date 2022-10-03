@@ -6,23 +6,23 @@ use std::sync::mpsc;
 
 fn main()
 {
-    let bugs = [0,0];
-    let taz = [1,0];
-    let tweety = [0,4];
-    let marvin = [2,2];
+    let bugs :(i8,i8,char) = (0,0,'B');
+    let taz:(i8,i8,char) = (1,0,'D');
+    let tweety:(i8,i8,char) = (0,4,'T');
+    let marvin:(i8,i8,char) = (2,2,'M');
     game_board(bugs, taz, tweety, marvin, 10);
 }
 
-fn game_board(bugs:[i8;2],taz:[i8;2], tweety:[i8;2], marvin:[i8;2],mut counter:i32) -> bool{
+fn game_board(bugs:(i8,i8,char),taz:(i8,i8,char), tweety:(i8,i8,char), marvin:(i8,i8,char),mut counter:i32) -> bool{
     counter = counter - 1;
 
     const M: usize = 5;
     const N: usize = 5;
 
-    let (bugs_tx, bugs_rx) = mpsc::channel();
-    let (taz_tx, taz_rx) = mpsc::channel();
-    let (tweety_tx, tweety_rx) = mpsc::channel();
-    let (marvin_tx, marvin_rx) = mpsc::channel();
+    let (bugs_tx, rx) = mpsc::channel();
+    let taz_tx = bugs_tx.clone();
+    let tweety_tx = bugs_tx.clone();
+    let marvin_tx = bugs_tx.clone();
 
     let mut grid = [['-' as char; N]; M];
     let bugs_handle = thread::spawn(move || {
@@ -42,12 +42,13 @@ fn game_board(bugs:[i8;2],taz:[i8;2], tweety:[i8;2], marvin:[i8;2],mut counter:i
         marvin_tx.send(marvin).unwrap();
     });
 
-    bugs_handle.join().unwrap();
-    taz_handle.join().unwrap();
-    tweety_handle.join().unwrap();
-    marvin_handle.join().unwrap();
 
-    let bugs = bugs_rx.recv().unwrap();
+    for received in rx{
+        println!("Received: {}",received.2);
+    }
+
+
+/*    let bugs = bugs_rx.recv().unwrap();
     let bugs_y:usize = bugs[0] as usize;
     let bugs_x:usize = bugs[1] as usize;
 
@@ -66,19 +67,39 @@ fn game_board(bugs:[i8;2],taz:[i8;2], tweety:[i8;2], marvin:[i8;2],mut counter:i
     if grid[bugs_y][bugs_x] == '-'
     {
         grid[bugs_y][bugs_x] = 'B';
-    };
+    }
+    else
+    {
+        println!("collision at {}",grid[bugs_y][bugs_x]);
+    }
     if grid[taz_y][taz_x] == '-'
     {
         grid[taz_y][taz_x] = 'D';
-    };
+    }
+    else
+    {
+        println!("collision at {}",grid[taz_y][taz_x]);
+    }
     if grid[tweety_y][tweety_x] == '-'
     {
         grid[tweety_y][tweety_x] = 'T';
+    }
+    else
+    {
+        println!("collision at {}",grid[tweety_y][tweety_x]);
     }
     if grid[marvin_y][marvin_x] == '-'
     {
         grid[marvin_y][marvin_x] = 'M';
     }
+    else
+    {
+        println!("collision at {}",grid[marvin_y][marvin_x]);
+    }*/
+    bugs_handle.join().unwrap();
+    taz_handle.join().unwrap();
+    tweety_handle.join().unwrap();
+    marvin_handle.join().unwrap();
 
     for (i, row) in grid.iter().enumerate() {
         for (j, col) in row.iter().enumerate() {
@@ -99,8 +120,7 @@ fn game_round() {
 
 }
 
-fn character_move(mut character:[i8;2]) -> [i8;2] {
-    println!("in character_move");
+fn character_move(mut character:(i8,i8,char)) -> (i8,i8,char) {
     let mut rng = rand::thread_rng();
     let mut vertical = rng.gen_range(0,9);
     let mut horizontal = rng.gen_range(0,10);
@@ -108,26 +128,26 @@ fn character_move(mut character:[i8;2]) -> [i8;2] {
     {
         if vertical > 4 {vertical = 1;}
         else { vertical = -1;}
-        if character[1] + vertical < 0 || character[1] + vertical > 4
+        if character.1 + vertical < 0 || character.1 + vertical > 4
         {
-            character[1] = character[1] - vertical;
+            character.1 = character.1 - vertical;
         }
         else
         {
-            character[1] = character[1] + vertical;
+            character.1 = character.1 + vertical;
         }
     }
     else
     {
         if horizontal > 4 {horizontal = 1;}
         else { horizontal = -1;}
-        if character[0] + horizontal < 0 || character[0] + horizontal > 4
+        if character.0 + horizontal < 0 || character.0 + horizontal > 4
         {
-            character[0] = character[0] - horizontal;
+            character.0 = character.0 - horizontal;
         }
         else
         {
-            character[0] = character[0] + horizontal;
+            character.0 = character.0 + horizontal;
         }
     }
     character
