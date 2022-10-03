@@ -6,14 +6,14 @@ use std::sync::mpsc;
 
 fn main()
 {
-    let bugs :(i8,i8,char) = (0,0,'B');
-    let taz:(i8,i8,char) = (1,0,'D');
-    let tweety:(i8,i8,char) = (0,4,'T');
-    let marvin:(i8,i8,char) = (2,2,'M');
+    let mut bugs :(i8,i8,char) = (0,0,'B');
+    let mut taz:(i8,i8,char) = (1,0,'D');
+    let mut tweety:(i8,i8,char) = (1,2,'T');
+    let mut marvin:(i8,i8,char) = (0,0,'M');
     game_board(bugs, taz, tweety, marvin, 10);
 }
 
-fn game_board(bugs:(i8,i8,char),taz:(i8,i8,char), tweety:(i8,i8,char), marvin:(i8,i8,char),mut counter:i32) -> bool{
+fn game_board(mut bugs:(i8,i8,char),mut taz:(i8,i8,char), mut tweety:(i8,i8,char),mut marvin:(i8,i8,char),mut counter:i32) -> bool{
     counter = counter - 1;
 
     const M: usize = 5;
@@ -42,60 +42,35 @@ fn game_board(bugs:(i8,i8,char),taz:(i8,i8,char), tweety:(i8,i8,char), marvin:(i
         marvin_tx.send(marvin).unwrap();
     });
 
-
+    let mut eliminated:char = '-';
     for received in rx{
         println!("Received: {}",received.2);
+        if grid[received.0 as usize][received.1 as usize] == '-'
+        {
+            grid[received.0 as usize][received.1 as usize] = received.2;
+        }
+        else if received.2 == 'M'
+        {
+            eliminated = grid[received.0 as usize][received.1 as usize];
+            grid[received.0 as usize][received.1 as usize] = 'M';
+        }
+        else
+        {
+            println!("collision at {} {}",received.0,received.1);
+        }
     }
 
+    if eliminated != '-'
+    {
+        println!("elimnated: {}", eliminated);
+        match eliminated {
+            'B' => bugs.2='-',
+            'D' => taz.2='-',
+            'T' => tweety.2='-',
+            _ => println!("Who got shot?"),
+        }
+    }
 
-/*    let bugs = bugs_rx.recv().unwrap();
-    let bugs_y:usize = bugs[0] as usize;
-    let bugs_x:usize = bugs[1] as usize;
-
-    let taz = taz_rx.recv().unwrap();
-    let taz_y:usize = taz[0] as usize;
-    let taz_x:usize = taz[1] as usize;
-
-    let tweety = tweety_rx.recv().unwrap();
-    let tweety_y:usize = tweety[0] as usize;
-    let tweety_x:usize = tweety[1] as usize;
-
-    let marvin = marvin_rx.recv().unwrap();
-    let marvin_y:usize = marvin[0] as usize;
-    let marvin_x:usize = marvin[1] as usize;
-
-    if grid[bugs_y][bugs_x] == '-'
-    {
-        grid[bugs_y][bugs_x] = 'B';
-    }
-    else
-    {
-        println!("collision at {}",grid[bugs_y][bugs_x]);
-    }
-    if grid[taz_y][taz_x] == '-'
-    {
-        grid[taz_y][taz_x] = 'D';
-    }
-    else
-    {
-        println!("collision at {}",grid[taz_y][taz_x]);
-    }
-    if grid[tweety_y][tweety_x] == '-'
-    {
-        grid[tweety_y][tweety_x] = 'T';
-    }
-    else
-    {
-        println!("collision at {}",grid[tweety_y][tweety_x]);
-    }
-    if grid[marvin_y][marvin_x] == '-'
-    {
-        grid[marvin_y][marvin_x] = 'M';
-    }
-    else
-    {
-        println!("collision at {}",grid[marvin_y][marvin_x]);
-    }*/
     bugs_handle.join().unwrap();
     taz_handle.join().unwrap();
     tweety_handle.join().unwrap();
