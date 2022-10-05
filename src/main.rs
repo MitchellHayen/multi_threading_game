@@ -29,6 +29,12 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
     let mut grid = [['-' as char; N]; M];
     grid[2][2] = 'C';
     grid[1][3] = 'X';
+
+    if (bugs.5 == true || taz.5 == true || tweety.5 == true || marvin.5 == true) && grid[2][2] == 'C' //if a character picked up the flag - remove flag from board
+    {
+        grid[2][2] = '-';
+    }
+
     let bugs_handle = thread::spawn(move || {
         bugs = character_move(bugs);
         bugs_tx.send(bugs).unwrap();
@@ -104,10 +110,7 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
     tweety_handle.join().unwrap();
     marvin_handle.join().unwrap();
 
-    if (bugs.5 == true || taz.5 == true || tweety.5 == true || marvin.5 == true) && grid[2][2] == 'C' //if a character picked up the flag - remove flag from board
-    {
-        grid[2][2] = '-';
-    }
+
 
     //printing game board
     for (_i, row) in grid.iter().enumerate() {
