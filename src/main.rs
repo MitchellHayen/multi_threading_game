@@ -5,11 +5,13 @@ use std::sync::mpsc;
 
 fn main()
 {
+    //Tuple value descriptions (current_x,current_y,name,previous_x,previous_y,has flag?)
     let mut bugs :(i8,i8,char,i8,i8,bool) = (0,0,'B',0,0,false);
     let mut taz:(i8,i8,char,i8,i8,bool) = (1,0,'D',1,0,false);
     let mut tweety:(i8,i8,char,i8,i8,bool) = (1,0,'T',1,0,false);
     let mut marvin:(i8,i8,char,i8,i8,bool) = (4,4,'M',4,4,false);
-    game_board(bugs, taz, tweety, marvin, 10);
+    //last argument passed is how many rounds to have the game run for -- game will end early on victory
+    game_board(bugs, taz, tweety, marvin, 20);
 }
 
 fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), mut tweety:(i8,i8,char,i8,i8,bool),mut marvin:(i8,i8,char,i8,i8,bool),mut counter:i32) -> bool{
@@ -26,7 +28,7 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
 
     let mut grid = [['-' as char; N]; M];
     grid[2][2] = 'C';
-    grid[0][4] = 'X';
+    grid[1][3] = 'X';
     let bugs_handle = thread::spawn(move || {
         bugs = character_move(bugs);
         bugs_tx.send(bugs).unwrap();
@@ -58,6 +60,11 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
             received.5 = true;
             println!("{} got the flag!",received.2);
         }
+        else if grid[received.0 as usize][received.1 as usize] == 'X' && received.5 == true
+        {
+            println!("{} won!",received.2);
+            counter = 0;
+        }
         else if received.2 == 'M' //if the character is Marvin and is moving on to a space that is not blank
         {
             eliminated = grid[received.0 as usize][received.1 as usize]; //Character which was eliminated is marked
@@ -75,6 +82,7 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
             'D' => taz = received,
             'T' => tweety = received,
             'M' => marvin = received,
+            '-' => println!("eliminated character"),
             _ => println!("error in assigning tuple received to character"),
         }
     }
@@ -90,6 +98,7 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
         }
     }
 
+    //wait for all threads to finish
     bugs_handle.join().unwrap();
     taz_handle.join().unwrap();
     tweety_handle.join().unwrap();
@@ -100,6 +109,7 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
         grid[2][2] = '-';
     }
 
+    //printing game board
     for (_i, row) in grid.iter().enumerate() {
         for (_j, col) in row.iter().enumerate() {
             print!("{}  ", col);
@@ -107,6 +117,7 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
         println!()
     }
     println!();
+
     if counter > 0 {
         game_board(bugs, taz, tweety, marvin, counter);
     }
@@ -122,8 +133,10 @@ fn character_move(mut character:(i8,i8,char,i8,i8,bool)) -> (i8,i8,char,i8,i8,bo
     // setting current position for later reference
     character.3 = character.0;
     character.4 = character.1;
+    //arbitrary -- just a way to randomize movement
     if row > column
     {
+        //arbitrary -- just a way to randomize movement
         if row > 4 { row = 1;}
         else { row = -1;}
         if character.1 + row < 0 || character.1 + row > 4
