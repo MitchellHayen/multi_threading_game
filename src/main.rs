@@ -6,19 +6,29 @@ use std::sync::mpsc;
 fn main()
 {
     //Tuple value descriptions (current_x,current_y,name,previous_x,previous_y,has flag?)
-    let mut bugs :(i8,i8,char,i8,i8,bool) = (0,0,'B',0,0,false);
-    let mut taz:(i8,i8,char,i8,i8,bool) = (1,0,'D',1,0,false);
-    let mut tweety:(i8,i8,char,i8,i8,bool) = (1,0,'T',1,0,false);
-    let mut marvin:(i8,i8,char,i8,i8,bool) = (4,4,'M',4,4,false);
-    //last argument passed is how many rounds to have the game run for -- game will end early on victory
-    game_board(bugs, taz, tweety, marvin, 20);
-}
-
-fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), mut tweety:(i8,i8,char,i8,i8,bool),mut marvin:(i8,i8,char,i8,i8,bool),mut counter:i32) -> bool{
-    counter = counter - 1;
-
+    let bugs :(i8,i8,char,i8,i8,bool) = (0,0,'B',0,0,false);
+    let taz:(i8,i8,char,i8,i8,bool) = (1,0,'D',1,0,false);
+    let tweety:(i8,i8,char,i8,i8,bool) = (1,0,'T',1,0,false);
+    let marvin:(i8,i8,char,i8,i8,bool) = (4,4,'M',4,4,false);
+    let mountain:(i8,i8,char,i8,i8,bool) = (1,3,'F',4,4,false);
     const M: usize = 5;
     const N: usize = 5;
+    let mut grid = [['-' as char; N]; M];
+    grid[2][2] = 'C';
+    grid[3][1] = 'C';
+    grid[mountain.0 as usize][mountain.1 as usize] = mountain.2;
+    game_board(bugs, taz, tweety, marvin,mountain, grid,0);
+}
+
+fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), mut tweety:(i8,i8,char,i8,i8,bool),mut marvin:(i8,i8,char,i8,i8,bool), mut mountain:(i8,i8,char,i8,i8,bool),mut grid:[[char;5];5],mut counter:i32) -> bool{
+    counter = counter + 1;
+    //Space X Multi-Dimensional Time Travel Machine
+    let mut SXMDTTM = false;
+    //Every 3 turns
+    if counter%3 == 0 {SXMDTTM = true}
+    let mut end = false;
+    //if counter > 20 { end = true;} //used for testing to keep board reprints low
+
 
     //creating channels so that we can communicate outside the spawned thread to the main thread
     let (bugs_tx, rx) = mpsc::channel();
@@ -26,13 +36,32 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
     let tweety_tx = bugs_tx.clone();
     let marvin_tx = bugs_tx.clone();
 
-    let mut grid = [['-' as char; N]; M];
-    grid[2][2] = 'C';
-    grid[1][3] = 'X';
-
-    if (bugs.5 == true || taz.5 == true || tweety.5 == true || marvin.5 == true) && grid[2][2] == 'C' //if a character picked up the flag - remove flag from board
+    //if it's time to move the mountain
+    if SXMDTTM
     {
-        grid[2][2] = '-';
+        let mut rng = rand::thread_rng();
+        let mut x = rng.gen_range(0, 4);
+        let mut y = rng.gen_range(0, 4);
+        //caching current coords to set to empty after mountain moves
+        mountain.3 = mountain.0;
+        mountain.4 = mountain.1;
+        mountain.0 = x;
+        mountain.1 = y;
+        while grid[mountain.0 as usize][mountain.1 as usize] != 'F'
+        {
+            if grid[mountain.0 as usize][mountain.1 as usize] == '-'
+            {
+                grid[mountain.0 as usize][mountain.1 as usize] = 'F';
+                grid[mountain.3 as usize][mountain.4 as usize] = '-';
+            }
+            else
+            {
+                x = rng.gen_range(0, 4);
+                y = rng.gen_range(0, 4);
+                mountain.0 = x;
+                mountain.1 = y;
+            }
+        }
     }
 
     let bugs_handle = thread::spawn(move || {
@@ -59,22 +88,28 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
         if grid[received.0 as usize][received.1 as usize] == '-' //if character tries to move to empty game board spot
         {
             grid[received.0 as usize][received.1 as usize] = received.2; //change game board spot to character marker
+            grid[received.3 as usize][received.4 as usize] = '-'; //previous position is empty
         }
         else if grid[received.0 as usize][received.1 as usize] == 'C' && received.2 != '-' //character steps on flag square and is not eliminated
         {
             grid[received.0 as usize][received.1 as usize] = received.2;
+            grid[received.3 as usize][received.4 as usize] = '-';
             received.5 = true;
             println!("{} got the flag!",received.2);
         }
-        else if grid[received.0 as usize][received.1 as usize] == 'X' && received.5 == true
+        else if grid[received.0 as usize][received.1 as usize] == 'F' && received.5 == true
         {
             println!("{} won!",received.2);
-            counter = 0;
+            end = true;
         }
         else if received.2 == 'M' //if the character is Marvin and is moving on to a space that is not blank
         {
-            eliminated = grid[received.0 as usize][received.1 as usize]; //Character which was eliminated is marked
-            grid[received.0 as usize][received.1 as usize] = 'M'; // Marvin takes position
+            if grid[received.0 as usize][received.1 as usize] != 'F'
+            {
+                eliminated = grid[received.0 as usize][received.1 as usize]; //Character which was eliminated is marked
+                grid[received.0 as usize][received.1 as usize] = 'M'; // Marvin takes position
+                grid[received.3 as usize][received.4 as usize] = '-';
+            }
         }
         else // characters collide
         {
@@ -97,9 +132,21 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
     {
         println!("eliminated: {}", eliminated);
         match eliminated { //changing character marker to blank game board spot so they are essentially invisible
-            'B' => bugs.2='-',
-            'D' => taz.2='-',
-            'T' => tweety.2='-',
+            'B' =>
+                {
+                    bugs.2='-';
+                    if bugs.5 == true {marvin.5 = true; println!("Marvin now has the flag!")}
+                },
+            'D' =>
+                {
+                    taz.2='-';
+                    if taz.5 == true {marvin.5 = true; println!("Marvin now has the flag!")}
+                },
+            'T' =>
+                {
+                    tweety.2='-';
+                    if tweety.5 == true {marvin.5 = true; println!("Marvin now has the flag!")}
+                },
             _ => println!("Who got shot?"),
         }
     }
@@ -121,8 +168,8 @@ fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), 
     }
     println!();
 
-    if counter > 0 {
-        game_board(bugs, taz, tweety, marvin, counter);
+    if !end {
+        game_board(bugs, taz, tweety, marvin,mountain,grid,counter);
     }
     true
 
