@@ -23,12 +23,16 @@ fn main()
     let end = Arc::new(Mutex::new(false));
     let grid = Arc::new(Mutex::new([['-' as char; N]; M]));
     {
+        //entering new scope so that the mutex locks after leaving this scope
+        //cloning reference to mutex
         let temp_grid = Arc::clone(&grid);
+        //unlocking mutex
         let mut grid = temp_grid.lock().unwrap();
         grid[3][3] = 'C';
         grid[3][1] = 'C';
         grid[mountain.0 as usize][mountain.1 as usize] = mountain.2;
     }
+    //mutex is not locked again
     let mut counter = 3;
 //main game loop
     loop
@@ -52,6 +56,7 @@ fn main()
             mountain.4 = mountain.1;
             mountain.0 = x;
             mountain.1 = y;
+            //mountain position is the same as previous position
             if mountain.3 == x && mountain.4 == y
             {
                 let mut grid = temp_grid.lock().unwrap();
@@ -60,14 +65,17 @@ fn main()
             }
             else {
                 let mut grid = temp_grid.lock().unwrap();
+                //while current position is not mountain
                 while grid[mountain.0 as usize][mountain.1 as usize] != 'F'
                 {
+                    //if new position is blank, then move mountain and change old position to blank '-'
                     if grid[mountain.0 as usize][mountain.1 as usize] == '-'
                     {
                         grid[mountain.3 as usize][mountain.4 as usize] = '-';
                         grid[mountain.0 as usize][mountain.1 as usize] = 'F';
                         println!("New mountain position at {} {}",mountain.0,mountain.1);
                     } else {
+                        //otherwise generate new position
                         x = rng.gen_range(0, 4);
                         y = rng.gen_range(0, 4);
                         mountain.0 = x;
@@ -77,7 +85,7 @@ fn main()
             }
         }
 
-
+        //need channels in order to send information out of threads to main thread
         let (tx,rx) = mpsc::channel();
         let mut handles = vec![];
         let mut temp_character_array = vec![];
@@ -92,14 +100,16 @@ fn main()
             //check if eliminated - break if true
             if *temp_elim.lock().unwrap() == character.2 {continue;}
             else {
+                //need to clone sending channel for each new thread created
                 let tx_clone = tx.clone();
+                //create new thread
                 let handle = thread::spawn(move ||
                     {
                         loop
                         {
                             let mut grid = temp_grid.lock().unwrap();
                             temp_character = character_move(character);
-                            if *temp_elim.lock().unwrap() == character.2 { break; } else if grid[temp_character.0 as usize][temp_character.1 as usize] == '-' //if character tries to move to empty game board spot
+                            if grid[temp_character.0 as usize][temp_character.1 as usize] == '-' //if character tries to move to empty game board spot
                             {
                                 grid[prev_x][prev_y] = '-'; //previous position is empty
                                 grid[temp_character.0 as usize][temp_character.1 as usize] = character.2; //change game board spot to character marker
@@ -135,9 +145,11 @@ fn main()
                         }
                         //TODO have infinite loop in movement when a character is trapped
                         character = temp_character;
+                        //send character outside of this thread to main thread (or wherever rx calls it)
                         tx_clone.send(character).unwrap();
                         if *temp_end.lock().unwrap() == false
                         {
+                            //print game board
                             let grid = temp_grid.lock().unwrap();
                             for (_i, row) in grid.iter().enumerate()
                             {
@@ -150,7 +162,7 @@ fn main()
                             println!();
                         }
                     });
-
+                //add handle to handles list to be joined later
                 handles.push(handle);
             }
         }
@@ -159,7 +171,9 @@ fn main()
             //wait for all threads to finish before moving on
             handle.join().unwrap();
         }
+        //tx was created in order to clone, but never used.  Need to drop for program to continue
         drop(tx);
+        //receiving characters from each thread
         for received in rx
         {
             temp_character_array.push(received);
@@ -175,170 +189,6 @@ fn main()
         character_array = temp_character_array;
     }
 }
-
-/*fn game_board(mut bugs:(i8,i8,char,i8,i8,bool),mut taz:(i8,i8,char,i8,i8,bool), mut tweety:(i8,i8,char,i8,i8,bool),mut marvin:(i8,i8,char,i8,i8,bool), mut mountain:(i8,i8,char,i8,i8,bool),mut counter:i32) -> bool{
-    counter = counter + 1;
-    //Space X Multi-Dimensional Time Travel Machine
-    let mut SXMDTTM = false;
-    //Every 3 turns
-    if counter%3 == 0 {SXMDTTM = true}
-    let mut end = false;
-    //if counter > 20 { end = true;} //used for testing to keep board reprints low
-
-
-    //creating channels so that we can communicate outside the spawned thread to the main thread
-    let (bugs_tx, rx) = mpsc::channel();
-    let taz_tx = bugs_tx.clone();
-    let tweety_tx = bugs_tx.clone();
-    let marvin_tx = bugs_tx.clone();
-
-    //if it's time to move the mountain
-    if SXMDTTM
-    {
-        let mut rng = rand::thread_rng();
-        let mut x = rng.gen_range(0, 4);
-        let mut y = rng.gen_range(0, 4);
-        //caching current coords to set to empty after mountain moves
-        mountain.3 = mountain.0;
-        mountain.4 = mountain.1;
-        mountain.0 = x;
-        mountain.1 = y;
-        if mountain.3 == x && mountain.4 == y
-        {
-            grid[mountain.0 as usize][mountain.1 as usize] = 'F';
-            println!("New mountain position at {} {}",mountain.0,mountain.1);
-        }
-        else {
-            while grid[mountain.0 as usize][mountain.1 as usize] != 'F'
-            {
-                if grid[mountain.0 as usize][mountain.1 as usize] == '-'
-                {
-                    grid[mountain.3 as usize][mountain.4 as usize] = '-';
-                    grid[mountain.0 as usize][mountain.1 as usize] = 'F';
-                    println!("New mountain position at {} {}",mountain.0,mountain.1);
-                } else {
-                    x = rng.gen_range(0, 4);
-                    y = rng.gen_range(0, 4);
-                    mountain.0 = x;
-                    mountain.1 = y;
-                }
-            }
-        }
-    }
-
-    let bugs_handle = thread::spawn(move || {
-        bugs = character_move(bugs);
-        bugs_tx.send(bugs).unwrap();
-    });
-    let taz_handle = thread::spawn(move || {
-        taz = character_move(taz);
-        taz_tx.send(taz).unwrap();
-    });
-    let tweety_handle = thread::spawn(move || {
-        tweety = character_move(tweety);
-        tweety_tx.send(tweety).unwrap();
-    });
-    let marvin_handle = thread::spawn(move || {
-        marvin = character_move(marvin);
-        marvin_tx.send(marvin).unwrap();
-    });
-
-    let mut eliminated:char = '-';
-    //receiving information from threads when they finish executing
-    for mut received in rx{
-        println!("Received: {}",received.2);
-        if grid[received.0 as usize][received.1 as usize] == '-' //if character tries to move to empty game board spot
-        {
-            grid[received.3 as usize][received.4 as usize] = '-'; //previous position is empty
-            grid[received.0 as usize][received.1 as usize] = received.2; //change game board spot to character marker
-        }
-        else if grid[received.0 as usize][received.1 as usize] == 'C' && received.2 != '-' //character steps on flag square and is not eliminated
-        {
-            grid[received.3 as usize][received.4 as usize] = '-';
-            grid[received.0 as usize][received.1 as usize] = received.2;
-            received.5 = true;
-            println!("{} got the flag!",received.2);
-        }
-        else if grid[received.0 as usize][received.1 as usize] == 'F' && received.5 == true
-        {
-            println!("{} won!",received.2);
-            end = true;
-        }
-        else if received.2 == 'M' //if the character is Marvin and is moving on to a space that is not blank
-        {
-            if grid[received.0 as usize][received.1 as usize] != 'F'
-            {
-                eliminated = grid[received.0 as usize][received.1 as usize]; //Character which was eliminated is marked
-                grid[received.3 as usize][received.4 as usize] = '-';
-                grid[received.0 as usize][received.1 as usize] = 'M'; // Marvin takes position
-            }
-        }
-        else // characters collide
-        {
-            println!("collision at {} {}",received.0,received.1);
-            grid[received.3 as usize][received.4 as usize] = received.2; //character does not move from previous position
-            received.0 = received.3;
-            received.1 = received.4;
-        }
-        match received.2 {
-            'B' => bugs = received,
-            'D' => taz = received,
-            'T' => tweety = received,
-            'M' => marvin = received,
-            '-' => println!("eliminated character received"),
-            _ => println!("error in assigning tuple received to character"),
-        }
-    }
-
-    if eliminated != '-' //if a character was eliminated this round
-    {
-        println!("eliminated: {}", eliminated);
-        match eliminated { //changing character marker to blank game board spot so they are essentially invisible
-            'B' =>
-                {
-                    bugs.2='-';
-                    bugs.5 = false;
-                    if bugs.5 == true {marvin.5 = true; println!("Marvin now has the flag!")}
-                },
-            'D' =>
-                {
-                    taz.2='-';
-                    taz.5 = false;
-                    if taz.5 == true {marvin.5 = true; println!("Marvin now has the flag!")}
-                },
-            'T' =>
-                {
-                    tweety.2='-';
-                    tweety.5 = false;
-                    if tweety.5 == true {marvin.5 = true; println!("Marvin now has the flag!")}
-                },
-            _ => println!("Who got shot? {}", eliminated),
-        }
-    }
-
-    //wait for all threads to finish
-    bugs_handle.join().unwrap();
-    taz_handle.join().unwrap();
-    tweety_handle.join().unwrap();
-    marvin_handle.join().unwrap();
-
-
-
-    //printing game board
-    for (_i, row) in grid.iter().enumerate() {
-        for (_j, col) in row.iter().enumerate() {
-            print!("{}  ", col);
-        }
-        println!()
-    }
-    println!();
-
-    if !end && counter < 50 {
-        game_board(bugs, taz, tweety, marvin,mountain,counter);
-    }
-    true
-
-}*/
 
 
 fn character_move(mut character:(i8,i8,char,i8,i8,bool)) -> (i8,i8,char,i8,i8,bool) {
